@@ -6,8 +6,8 @@
 #include <nvector/nvector_serial.h>
 #include <sundials/sundials_types.h>
 
-#include <sunmatrix/sunmatrix_dense.h>
-#include <sunlinsol/sunlinsol_dense.h>
+#include <sunmatrix/sunmatrix_band.h>
+#include <sunlinsol/sunlinsol_band.h>
 
 
 using namespace std;
@@ -18,10 +18,11 @@ int equations(realtype t, N_Vector T, N_Vector Tprime, N_Vector res,
 int jac(realtype t,  realtype cj, N_Vector T, N_Vector Tprime, N_Vector res,
            SUNMatrix J, void *user_data, N_Vector tempv1, N_Vector tempv2, N_Vector tempv3);
 
+
 int main()
 {
 
-    int N = 11;
+    int N = 101;
 
     int retval;
     SUNContext ctx;
@@ -31,6 +32,7 @@ int main()
     double *Tval, *Tpval, *atval;
     double rtol, t0, tout, tret;
     int iout, retvalr;
+    sunindextype mu, ml;
     SUNMatrix A;
     SUNLinearSolver LS;
     SUNNonlinearSolver NLS;
@@ -67,12 +69,13 @@ int main()
     mem = IDACreate(ctx);
     retval = IDASetId(mem, id);
 
-    A = SUNDenseMatrix(N, N, ctx);
+    A = SUNBandMatrix(N, 1, 1, ctx);
 
     retval = IDAInit(mem, equations, t0, T, Tprime);
     retval = IDASVtolerances(mem, rtol, avtol);
-    LS = SUNLinSol_Dense(T, A, ctx);
+    LS = SUNLinSol_Band(T, A, ctx);
     retval = IDASetLinearSolver(mem, LS, A);
+
     retval = IDASetJacFn(mem, jac);
 
     //retval = IDAGetConsistentIC(mem, T, Tprime);
@@ -101,7 +104,7 @@ int equations(realtype t, N_Vector Y, N_Vector Yprime, N_Vector Yres,
 		void *userdata)
 {
 
-    int N = 11;
+    int N = 101;
     double D = 1.0e-4;
     double Delta = 1.0 / (N - 1);
 
@@ -123,27 +126,26 @@ int equations(realtype t, N_Vector Y, N_Vector Yprime, N_Vector Yres,
 int jac(realtype t,  realtype cj, N_Vector T, N_Vector Tprime, N_Vector res,
            SUNMatrix J, void *user_data, N_Vector tempv1, N_Vector tempv2, N_Vector tempv3)
 {
-    int N = 11;
+    int N = 101;
     double D = 1e-4;
     double Delta = 1.0/(N-1);
 
     double *col;
 
-    for (int j = 1; j < N-1; j++)
+    for (int i = 1; i < N-1; i++)
     {
-        col = SUNDenseMatrix_Column(J, j);
-        col[j-1] = -D / (Delta * Delta);
-        col[j] = 2 * D / (Delta * Delta) + cj;
-        col[j+1] = -D / (Delta * Delta);
-    }
-    col = SUNDenseMatrix_Column(J, 0);
-    col[0] = 1;
-    col[1] = -D / (Delta * Delta);
-    col = SUNDenseMatrix_Column(J, N-1);
-    col[N-2] = -D / (Delta * Delta);
-    col[N-1] = 1;
+        col = SUNBandMatrix_Column(J, i);
+        col[-1] = -D / (Delta * Delta);
+        col[0]  = 2 * D / (Delta * Delta) + cj;
+        col[1]  = -D / (Delta * Delta);
 
-    //SUNDenseMatrix_Print(J, stdout);
+    }
+    col = SUNBandMatrix_Column(J, 0);
+    col[0] = 1;
+    col = SUNBandMatrix_Column(J, N-1);
+    col[0] = 1;
+
+    //SUNBandMatrix_Print(J, stdout);
 
     return 0;
 }
